@@ -1,9 +1,13 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
 export default defineConfig({
+  base: './',                    // essentiel pour le bon chargement
   plugins: [react()],
-  base: './', // ← change simplement cette ligne
   build: {
     outDir: 'dist',
     sourcemap: false,
     minify: 'esbuild'
   }
 })
+
