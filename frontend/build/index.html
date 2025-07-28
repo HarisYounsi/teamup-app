@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon-32x32.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <!-- PWA Meta Tags -->
+  <meta name="description" content="TeamUp - Application de rencontres sportives. Trouvez des partenaires de sport près de chez vous." />
+  <meta name="theme-color" content="#059669" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="TeamUp" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="msapplication-TileColor" content="#059669" />
+  <meta name="msapplication-tap-highlight" content="no" />
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json" />
+  
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.png" />
+  
+  <!-- Favicon variants -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+  
+  <!-- Microsoft Tiles -->
+  <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+  <meta name="msapplication-square70x70logo" content="/icons/icon-72x72.png" />
+  <meta name="msapplication-square150x150logo" content="/icons/icon-152x152.png" />
+  <meta name="msapplication-wide310x150logo" content="/icons/icon-384x384.png" />
+  <meta name="msapplication-square310x310logo" content="/icons/icon-384x384.png" />
+  
+  <title>TeamUp - Rencontres Sportives</title>
+  <script type="module" crossorigin src="/assets/index-e5d88bdc.js"></script>
+  <link rel="stylesheet" href="/assets/index-dd63767b.css">
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- PWA Install Banner (sera ajouté par JavaScript) -->
+  <div id="pwa-install-banner" style="display: none;">
+    <div style="position: fixed; bottom: 20px; left: 20px; right: 20px; background: #059669; color: white; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <strong>Installer TeamUp</strong>
+          <p style="margin: 4px 0 0; font-size: 14px;">Accédez rapidement à l'app depuis votre écran d'accueil</p>
+        </div>
+        <div>
+          <button id="pwa-install-btn" style="background: white; color: #059669; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; margin-right: 8px;">
+            Installer
+          </button>
+          <button id="pwa-dismiss-btn" style="background: transparent; color: white; border: 1px solid white; padding: 8px 12px; border-radius: 4px;">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  
+  
+  <!-- PWA Service Worker Registration -->
+  <script>
+    // Enregistrement du Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            console.log('✅ SW registered: ', registration);
+          })
+          .catch((registrationError) => {
+            console.log('❌ SW registration failed: ', registrationError);
+          });
+      });
+    }
+
+    // PWA Install Prompt
+    let deferredPrompt;
+    const installBanner = document.getElementById('pwa-install-banner');
+    const installBtn = document.getElementById('pwa-install-btn');
+    const dismissBtn = document.getElementById('pwa-dismiss-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      console.log('💾 PWA install prompt available');
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // Afficher la bannière d'installation si pas déjà installé
+      if (!window.matchMedia('(display-mode: standalone)').matches) {
+        installBanner.style.display = 'block';
+      }
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`🎯 User response: ${outcome}`);
+        deferredPrompt = null;
+        installBanner.style.display = 'none';
+      }
+    });
+
+    dismissBtn.addEventListener('click', () => {
+      installBanner.style.display = 'none';
+      // Se souvenir que l'utilisateur a dismissé (optionnel)
+      localStorage.setItem('pwa-dismissed', 'true');
+    });
+
+    // Masquer la bannière si déjà installé
+    window.addEventListener('appinstalled', () => {
+      console.log('🎉 PWA installed successfully');
+      installBanner.style.display = 'none';
+    });
+
+    // Vérifier si l'app est lancée en mode standalone (installée)
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('📱 App launched in standalone mode');
+    }
+  </script>
+</body>
+</html>
