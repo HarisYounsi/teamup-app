@@ -3,10 +3,10 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:5000';
 
 const api = axios.create({
-  baseURL: API_URL + '/api',  // met ici le préfixe commun à toutes tes routes backend
+  baseURL: API_URL + '/api',  // c’est parfait ici, toutes tes requêtes commenceront par /api
 });
 
-// Intercepteur pour ajouter le token JWT
+// Intercepteur pour ajouter le token JWT si présent
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -18,13 +18,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Exemple d’appel pour vérifier
+// Appel test à placer dans un useEffect ou à appeler manuellement pour debugger
 api.get('/events')
   .then(res => {
-    console.log(res.data);
+    console.log('Events:', res.data);
   })
   .catch(err => {
-    console.error(err);
+    // Affiche l’erreur avec plus de détails
+    console.error('Erreur API:', {
+      message: err.message,
+      status: err.response?.status,
+      data: err.response?.data,
+      config: err.config,
+    });
   });
 
 // Auth API
