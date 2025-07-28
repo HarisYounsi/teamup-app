@@ -7,7 +7,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'https://teamup-app-kappa.vercel.app',,
+    'https://teamup-app-eta.vercel.app',
     'http://localhost:5173' // pour le dev local
   ],
   credentials: true,
