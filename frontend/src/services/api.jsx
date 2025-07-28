@@ -1,13 +1,9 @@
 import axios from 'axios';
 
-// Utilise VITE_API_URL et supprime le slash final s’il existe
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:5000';
 
 const api = axios.create({
-  baseURL: `${API_URL}/api`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: API_URL + '/api',  // met ici le préfixe commun à toutes tes routes backend
 });
 
 // Intercepteur pour ajouter le token JWT
@@ -21,6 +17,15 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+
+// Exemple d’appel pour vérifier
+api.get('/events')
+  .then(res => {
+    console.log(res.data);
+  })
+  .catch(err => {
+    console.error(err);
+  });
 
 // Auth API
 export const authAPI = {
