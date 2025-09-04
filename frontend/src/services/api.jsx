@@ -33,20 +33,4 @@ export const eventsAPI = {
   joinEvent: (eventId) => api.post(`/events/${eventId}/join`),
 };
 
-// Fonction de test (à appeler manuellement si besoin)
-/*export const testAPI = () => {
-  api.get('/events')
-    .then(res => {
-      console.log('Events:', res.data);
-    })
-    .catch(err => {
-      console.error('Erreur API:', {
-        message: err.message,
-        status: err.response?.status,
-        data: err.response?.data,
-        config: err.config,
-      });
-    });
-};*/
-
 export default api;
