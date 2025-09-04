@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:5000';
 
 const api = axios.create({
-  baseURL: API_URL + '/api',  // c’est parfait ici, toutes tes requêtes commenceront par /api
+  baseURL: API_URL + '/api',
 });
 
 // Intercepteur pour ajouter le token JWT si présent
@@ -18,21 +18,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Appel test à placer dans un useEffect ou à appeler manuellement pour debugger
-api.get('/events')
-  .then(res => {
-    console.log('Events:', res.data);
-  })
-  .catch(err => {
-    // Affiche l’erreur avec plus de détails
-    console.error('Erreur API:', {
-      message: err.message,
-      status: err.response?.status,
-      data: err.response?.data,
-      config: err.config,
-    });
-  });
-
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
@@ -46,6 +31,22 @@ export const eventsAPI = {
   create: (eventData) => api.post('/events', eventData),
   getMyEvents: () => api.get('/events/mes-events'),
   joinEvent: (eventId) => api.post(`/events/${eventId}/join`),
+};
+
+// Fonction de test (à appeler manuellement si besoin)
+export const testAPI = () => {
+  api.get('/events')
+    .then(res => {
+      console.log('Events:', res.data);
+    })
+    .catch(err => {
+      console.error('Erreur API:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+        config: err.config,
+      });
+    });
 };
 
 export default api;
