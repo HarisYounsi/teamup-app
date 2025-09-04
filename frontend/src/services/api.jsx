@@ -34,7 +34,7 @@ export const eventsAPI = {
 };
 
 // Fonction de test (à appeler manuellement si besoin)
-export const testAPI = () => {
+/*export const testAPI = () => {
   api.get('/events')
     .then(res => {
       console.log('Events:', res.data);
@@ -47,6 +47,6 @@ export const testAPI = () => {
         config: err.config,
       });
     });
-};
+};*/
 
 export default api;
