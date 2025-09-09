@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'https://teamup-backend-q0sh.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL + '/api',
