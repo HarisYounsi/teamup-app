@@ -40,10 +40,35 @@ const UserSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Ajout de la localisation pour l'utilisateur
+  adresse: {
+    type: String,
+    trim: true
+  },
+  coordonnees: {
+    latitude: {
+      type: Number,
+      required: false
+    },
+    longitude: {
+      type: Number,
+      required: false
+    }
+  },
+  // Préférences de distance de recherche
+  rayonRecherche: {
+    type: Number,
+    default: 10, // en kilomètres
+    min: 1,
+    max: 100
+  },
   dateCreation: {
     type: Date,
     default: Date.now
   }
 });
+
+// Index géospatial pour les recherches d'utilisateurs par proximité
+UserSchema.index({ coordonnees: "2dsphere" });
 
 module.exports = mongoose.model('User', UserSchema);

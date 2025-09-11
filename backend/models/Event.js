@@ -1,14 +1,12 @@
 const mongoose = require('mongoose');
 
-const EventSchema = new mongoose.Schema({
+const eventSchema = new mongoose.Schema({
   titre: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   description: {
-    type: String,
-    required: true
+    type: String
   },
   sport: {
     type: String,
@@ -30,15 +28,22 @@ const EventSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  latitude: {
+    type: Number,
+    default: null
+  },
+  longitude: {
+    type: Number,
+    default: null
+  },
   nombreParticipants: {
     type: Number,
-    required: true,
-    min: 2
+    required: true
   },
   niveau: {
     type: String,
-    enum: ['debutant', 'intermediaire', 'avance', 'tous'],
-    default: 'tous'
+    enum: ['debutant', 'intermediaire', 'avance'],
+    default: 'intermediaire'
   },
   organisateur: {
     type: mongoose.Schema.Types.ObjectId,
@@ -58,6 +63,8 @@ const EventSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Event', EventSchema);
+module.exports = mongoose.model('Event', eventSchema);

@@ -1,44 +1,84 @@
 const express = require('express');
-const Event = require('../models/Event');
-const auth = require('../middleware/auth');
-
 const router = express.Router();
+const Event = require('../models/Event');
+const auth = require('../middleware/auth'); // Votre middleware d'authentification
+const { getCoordinatesFromAddress } = require('../services/geocodingService');
 
-// Récupérer tous les événements
+// GET - Récupérer tous les événements
 router.get('/', async (req, res) => {
   try {
-    const events = await Event.find({ statut: 'ouvert' })
-      .populate('organisateur', 'nom prenom')
-      .populate('participants', 'nom prenom')
-      .sort({ date: 1 });
+    const { latitude, longitude, rayon } = req.query;
     
-    res.json(events);
+    let events;
+    if (latitude && longitude && rayon) {
+      // Recherche avec géolocalisation
+      events = await Event.find({
+        latitude: { $exists: true, $ne: null },
+        longitude: { $exists: true, $ne: null }
+      }).populate('organisateur', 'nom prenom');
+      
+      // Filtrer par distance (calcul approximatif)
+      events = events.filter(event => {
+        const distance = getDistance(
+          parseFloat(latitude), 
+          parseFloat(longitude),
+          event.latitude, 
+          event.longitude
+        );
+        return distance <= parseFloat(rayon);
+      });
+    } else {
+      events = await Event.find().populate('organisateur', 'nom prenom');
+    }
+    
+    res.json({ data: events });
   } catch (error) {
-    console.error(error);
+    console.error('Erreur lors de la récupération des événements:', error);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
 
-// Créer un événement (créateurs seulement)
+// POST - Créer un nouvel événement avec géocodage automatique
 router.post('/', auth, async (req, res) => {
+  console.log('🚀 ROUTE POST /events APPELÉE !');
+  console.log('Body reçu:', req.body);
+  console.log('User authentifié:', req.user?.id);
+  
   try {
-    if (req.user.role !== 'createur') {
-      return res.status(403).json({ message: 'Seuls les créateurs peuvent créer des événements' });
-    }
-
-    const {
-      titre,
-      description,
-      sport,
-      date,
-      heure,
-      lieu,
-      ville,
-      nombreParticipants,
-      niveau
+    const { 
+      titre, 
+      description, 
+      sport, 
+      date, 
+      heure, 
+      lieu, 
+      ville, 
+      nombreParticipants, 
+      niveau 
     } = req.body;
 
-    const event = new Event({
+    console.log('📝 Données extraites:', { titre, lieu, ville });
+
+    // Validation des champs requis
+    if (!titre || !sport || !date || !heure || !lieu || !ville || !nombreParticipants) {
+      console.log('❌ Validation échouée - champs manquants');
+      return res.status(400).json({ 
+        message: 'Tous les champs obligatoires doivent être remplis' 
+      });
+    }
+
+    // Vérification de la clé API
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    console.log('🔑 Clé API disponible:', apiKey ? 'OUI' : 'NON');
+    console.log('🔑 Début clé API:', apiKey ? apiKey.substring(0, 10) + '...' : 'UNDEFINED');
+
+    // Géocodage automatique de l'adresse
+    console.log(`🔍 Début du géocodage pour: ${lieu}, ${ville}`);
+    const coordinates = await getCoordinatesFromAddress(lieu, ville);
+    console.log('🎯 Résultat géocodage:', coordinates);
+
+    // Créer l'événement avec ou sans coordonnées
+    const newEvent = new Event({
       titre,
       description,
       sport,
@@ -46,83 +86,112 @@ router.post('/', auth, async (req, res) => {
       heure,
       lieu,
       ville,
+      latitude: coordinates?.latitude || null,
+      longitude: coordinates?.longitude || null,
       nombreParticipants,
-      niveau: niveau || 'tous',
-      organisateur: req.user._id
+      niveau: niveau || 'intermediaire',
+      organisateur: req.user.id,
+      participants: [],
+      statut: 'ouvert'
     });
 
-    await event.save();
-    
-    const populatedEvent = await Event.findById(event._id)
-      .populate('organisateur', 'nom prenom')
-      .populate('participants', 'nom prenom');
+    console.log('💾 Sauvegarde de l\'événement...');
+    const savedEvent = await newEvent.save();
+    await savedEvent.populate('organisateur', 'nom prenom');
 
-    res.status(201).json({
-      message: 'Événement créé avec succès',
-      event: populatedEvent
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-});
-
-// Récupérer les événements d'un organisateur
-router.get('/mes-events', auth, async (req, res) => {
-  try {
-    if (req.user.role !== 'createur') {
-      return res.status(403).json({ message: 'Accès refusé' });
+    // Log du résultat
+    if (coordinates) {
+      console.log(`✅ Événement créé avec coordonnées: ${coordinates.latitude}, ${coordinates.longitude}`);
+    } else {
+      console.log(`⚠️ Événement créé sans coordonnées pour: ${lieu}, ${ville}`);
     }
 
-    const events = await Event.find({ organisateur: req.user._id })
-      .populate('organisateur', 'nom prenom')
-      .populate('participants', 'nom prenom')
-      .sort({ date: 1 });
-
-    res.json(events);
+    console.log('🎉 Événement sauvé avec succès, ID:', savedEvent._id);
+    res.status(201).json(savedEvent);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    console.error('💥 Erreur lors de la création de l\'événement:', error);
+    console.error('💥 Stack trace:', error.stack);
+    res.status(500).json({ message: 'Erreur serveur lors de la création de l\'événement' });
   }
 });
 
-// S'inscrire à un événement
-router.post('/:id/join', auth, async (req, res) => {
+// PUT - Mettre à jour un événement avec géocodage si l'adresse change
+router.put('/:id', auth, async (req, res) => {
   try {
+    const { lieu, ville, ...otherUpdates } = req.body;
     const event = await Event.findById(req.params.id);
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Événement non trouvé' });
     }
 
-    if (event.participants.includes(req.user._id)) {
-      return res.status(400).json({ message: 'Vous êtes déjà inscrit à cet événement' });
+    // Vérifier si l'utilisateur est l'organisateur
+    if (event.organisateur.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Non autorisé à modifier cet événement' });
     }
 
-    if (event.participants.length >= event.nombreParticipants) {
-      return res.status(400).json({ message: 'Événement complet' });
+    let updateData = { ...otherUpdates };
+
+    // Si l'adresse a changé, régéocoder
+    if (lieu || ville) {
+      const newLieu = lieu || event.lieu;
+      const newVille = ville || event.ville;
+      
+      if (newLieu !== event.lieu || newVille !== event.ville) {
+        console.log(`🔄 Re-géocodage pour: ${newLieu}, ${newVille}`);
+        const coordinates = await getCoordinatesFromAddress(newLieu, newVille);
+        
+        updateData.lieu = newLieu;
+        updateData.ville = newVille;
+        updateData.latitude = coordinates?.latitude || null;
+        updateData.longitude = coordinates?.longitude || null;
+      }
     }
 
-    event.participants.push(req.user._id);
-    
-    if (event.participants.length >= event.nombreParticipants) {
-      event.statut = 'complet';
-    }
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).populate('organisateur', 'nom prenom');
 
-    await event.save();
-
-    const updatedEvent = await Event.findById(event._id)
-      .populate('organisateur', 'nom prenom')
-      .populate('participants', 'nom prenom');
-
-    res.json({
-      message: 'Inscription réussie',
-      event: updatedEvent
-    });
+    res.json(updatedEvent);
   } catch (error) {
-    console.error(error);
+    console.error('Erreur lors de la mise à jour de l\'événement:', error);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
+
+// DELETE - Supprimer un événement
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ message: 'Événement non trouvé' });
+    }
+
+    if (event.organisateur.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Non autorisé à supprimer cet événement' });
+    }
+
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Événement supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'événement:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Fonction utilitaire pour calculer la distance entre deux points GPS
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Rayon de la Terre en km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
 
 module.exports = router;
