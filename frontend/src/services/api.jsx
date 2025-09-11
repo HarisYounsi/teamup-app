@@ -18,28 +18,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Intercepteur pour gérer les erreurs de réponse
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Gestion spécifique des erreurs réseau
-    if (!error.response) {
-      // Erreur réseau (pas de réponse du serveur)
-      error.code = 'NETWORK_ERROR';
-      error.message = 'Erreur de connexion au serveur';
-      console.warn('Erreur réseau détectée:', error.message);
-    } else if (error.response.status >= 500) {
-      // Erreur serveur
-      error.message = 'Erreur du serveur, veuillez réessayer plus tard';
-    } else if (error.response.status === 401) {
-      // Token expiré ou invalide
-      error.message = 'Session expirée, veuillez vous reconnecter';
-    }
-   
-    return Promise.reject(error);
-  }
-);
-
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
