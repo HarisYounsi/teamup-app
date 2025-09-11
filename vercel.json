@@ -6,11 +6,10 @@
       "destination": "https://teamup-backend-q0sh.onrender.com/api/$1"
     }
   ],
-  "builds": [
-    { "src": "dist/**", "use": "@vercel/static" }
-  ],
-  
   "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ]
 }
