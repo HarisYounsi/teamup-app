@@ -1,29 +1,6 @@
 import axios from 'axios';
 
-// Méthode robuste pour obtenir l'URL de l'API
-const getApiUrl = () => {
-  // En production, utiliser la variable d'environnement Vercel
-  if (import.meta.env.PROD && import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
-  }
-  
-  // Fallback pour la production
-  if (import.meta.env.PROD) {
-    return 'https://teamup-backend-q0sh.onrender.com';
-  }
-  
-  // En développement, utiliser localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000';
-};
-
-const API_URL = getApiUrl();
-
-// Debug: Afficher l'URL finale en développement uniquement
-if (!import.meta.env.PROD) {
-  console.log('Environment:', import.meta.env.MODE);
-  console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
-  console.log('Final API_URL:', API_URL);
-}
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'https://teamup-backend-q0sh.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL + '/api',

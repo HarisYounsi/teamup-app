@@ -8,10 +8,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     minify: 'esbuild'
-  },
-  define: {
-    // S'assurer que les variables d'environnement sont correctement injectées
-    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL)
   }
 })
 
