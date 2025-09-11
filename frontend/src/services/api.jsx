@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'https://teamup-backend-q0sh.onrender.com';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_URL + '/api',
 });
 
 // Intercepteur pour ajouter le token JWT si présent
