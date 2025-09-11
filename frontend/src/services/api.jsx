@@ -10,9 +10,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     try {
-  console.warn('début try');
+  
 } catch (error) {  // ← Ajouter paramètre et accolades
-  console.warn('fin try', error);
+  
 }
     const token = localStorage.getItem('token');
     if (token) {
