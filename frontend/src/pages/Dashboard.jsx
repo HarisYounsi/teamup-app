@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { eventsAPI } from '../services/api';
 
-// Composant de création d'événement
+// Composant de création d'événement mis à jour
 const CreateEventForm = ({ onEventCreated, onCancel }) => {
   const [formData, setFormData] = useState({
     titre: '',
@@ -12,8 +12,10 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
     heure: '',
     lieu: '',
     ville: '',
+    adresse: '',
     nombreParticipants: '',
-    niveau: 'tous'
+    niveau: 'tous',
+    creneauxDisponibles: []
   });
   
   const [errors, setErrors] = useState({});
@@ -40,6 +42,35 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
     }
   };
 
+  const ajouterCreneau = () => {
+    const nouveauCreneau = {
+      debut: '',
+      fin: '',
+      terrain: 'Principal',
+      disponible: true
+    };
+    setFormData(prev => ({
+      ...prev,
+      creneauxDisponibles: [...prev.creneauxDisponibles, nouveauCreneau]
+    }));
+  };
+
+  const modifierCreneau = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      creneauxDisponibles: prev.creneauxDisponibles.map((creneau, i) => 
+        i === index ? { ...creneau, [field]: value } : creneau
+      )
+    }));
+  };
+
+  const supprimerCreneau = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      creneauxDisponibles: prev.creneauxDisponibles.filter((_, i) => i !== index)
+    }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -50,6 +81,7 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
     if (!formData.heure) newErrors.heure = 'L\'heure est requise';
     if (!formData.lieu.trim()) newErrors.lieu = 'Le lieu est requis';
     if (!formData.ville.trim()) newErrors.ville = 'La ville est requise';
+    if (!formData.adresse.trim()) newErrors.adresse = 'L\'adresse complète est requise';
     if (!formData.nombreParticipants || formData.nombreParticipants < 2) {
       newErrors.nombreParticipants = 'Au moins 2 participants requis';
     }
@@ -82,8 +114,10 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
         heure: '',
         lieu: '',
         ville: '',
+        adresse: '',
         nombreParticipants: '',
-        niveau: 'tous'
+        niveau: 'tous',
+        creneauxDisponibles: []
       });
       
       alert('Événement créé avec succès !');
@@ -138,7 +172,6 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
               {sportsPopulaires.map(sport => (
                 <option key={sport} value={sport}>{sport}</option>
               ))}
-              <option value="Autre">Autre</option>
             </select>
             {errors.sport && <p className="mt-1 text-sm text-red-600">{errors.sport}</p>}
           </div>
@@ -237,6 +270,25 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
           </div>
         </div>
 
+        <div>
+          <label htmlFor="adresse" className="block text-sm font-medium text-gray-700 mb-2">
+            Adresse complète *
+          </label>
+          <input
+            id="adresse"
+            name="adresse"
+            type="text"
+            value={formData.adresse}
+            onChange={handleChange}
+            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+              errors.adresse ? 'border-red-300' : 'border-gray-300'
+            }`}
+            placeholder="ex: 123 Rue du Sport, 75001 Paris"
+          />
+          <p className="mt-1 text-sm text-gray-500">Cette adresse sera utilisée pour localiser l'événement sur la carte</p>
+          {errors.adresse && <p className="mt-1 text-sm text-red-600">{errors.adresse}</p>}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="nombreParticipants" className="block text-sm font-medium text-gray-700 mb-2">
@@ -269,12 +321,78 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="tous">👥 Tous niveaux</option>
-              <option value="debutant">🌱 Débutant</option>
-              <option value="intermediaire">🎯 Intermédiaire</option>
-              <option value="avance">🏆 Avancé</option>
+              <option value="tous">Tous niveaux</option>
+              <option value="debutant">Débutant</option>
+              <option value="intermediaire">Intermédiaire</option>
+              <option value="avance">Avancé</option>
             </select>
           </div>
+        </div>
+
+        {/* Système de créneaux/terrains */}
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <label className="block text-sm font-medium text-gray-700">
+              Créneaux et terrains disponibles
+            </label>
+            <button
+              type="button"
+              onClick={ajouterCreneau}
+              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-1 rounded-md text-sm font-medium transition-colors"
+            >
+              + Ajouter un créneau
+            </button>
+          </div>
+          
+          {formData.creneauxDisponibles.map((creneau, index) => (
+            <div key={index} className="bg-white p-4 rounded-md border mb-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Heure début</label>
+                  <input
+                    type="time"
+                    value={creneau.debut}
+                    onChange={(e) => modifierCreneau(index, 'debut', e.target.value)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Heure fin</label>
+                  <input
+                    type="time"
+                    value={creneau.fin}
+                    onChange={(e) => modifierCreneau(index, 'fin', e.target.value)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Terrain/Espace</label>
+                  <input
+                    type="text"
+                    value={creneau.terrain}
+                    onChange={(e) => modifierCreneau(index, 'terrain', e.target.value)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                    placeholder="ex: Terrain A"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => supprimerCreneau(index)}
+                    className="w-full bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-sm font-medium transition-colors"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {formData.creneauxDisponibles.length === 0 && (
+            <p className="text-sm text-gray-500 italic">
+              Aucun créneau spécifique défini. L'événement sera ouvert selon l'heure principale.
+            </p>
+          )}
         </div>
 
         {errors.submit && (
@@ -299,7 +417,7 @@ const CreateEventForm = ({ onEventCreated, onCancel }) => {
                 Création en cours...
               </div>
             ) : (
-              '✨ Créer l\'événement'
+              'Créer l\'événement'
             )}
           </button>
           
@@ -323,6 +441,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   // Charger les événements au démarrage
   useEffect(() => {
@@ -355,6 +474,16 @@ const Dashboard = () => {
   const handleEventCreated = (newEvent) => {
     setEvents(prev => [newEvent, ...prev]);
     setShowCreateForm(false);
+  };
+
+  const handleReserveSlot = async (eventId, terrain = 'Principal') => {
+    try {
+      const response = await eventsAPI.reserveSlot(eventId, { terrain });
+      alert('Réservation confirmée !');
+      loadEvents();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Erreur lors de la réservation');
+    }
   };
 
   const formatDate = (dateString) => {
@@ -392,7 +521,7 @@ const Dashboard = () => {
     return sportEmojis[sport] || '🏃‍♂️';
   };
 
-  if (loading) {
+  if (loading && events.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Navbar */}
@@ -400,7 +529,7 @@ const Dashboard = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
               <div className="flex items-center">
-                <h1 className="text-xl font-bold text-emerald-600">🏃‍♀️ TeamUp</h1>
+                <h1 className="text-xl font-bold text-emerald-600">TeamUp</h1>
               </div>
             </div>
           </div>
@@ -408,7 +537,7 @@ const Dashboard = () => {
         
         {/* Loading */}
         <div className="flex justify-center items-center h-64">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
         </div>
       </div>
     );
@@ -421,7 +550,7 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-indigo-600">🏃‍♀️ TeamUp</h1>
+              <h1 className="text-xl font-bold text-emerald-600">TeamUp</h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">
@@ -440,10 +569,10 @@ const Dashboard = () => {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header avec statistiques */}
+        {/* Header */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            {isCreator ? 'Espace Organisateur' : 'Événements sportifs'}
+            {isCreator ? 'Espace Organisateur' : 'Vos événements sportifs'}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -490,7 +619,7 @@ const Dashboard = () => {
           <div className="mb-8">
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">⭐ Créer un nouvel événement</h3>
+                <h3 className="text-xl font-semibold text-gray-900">Créer un nouvel événement</h3>
                 <button
                   onClick={() => setShowCreateForm(!showCreateForm)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
@@ -511,7 +640,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Liste des événements */}
+        {/* Vue liste uniquement */}
         <div>
           <h3 className="text-xl font-semibold text-gray-900 mb-6">
             {events.length > 0 ? 'Événements disponibles' : 'Aucun événement pour le moment'}
@@ -537,78 +666,191 @@ const Dashboard = () => {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {events.map((event) => (
-                <div key={event._id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
-                  <div className="p-6">
-                    {/* Header de l'événement */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center">
-                        <span className="text-2xl mr-3">{getSportEmoji(event.sport)}</span>
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900">{event.titre}</h4>
-                          <p className="text-sm text-gray-600">{event.sport}</p>
-                        </div>
-                      </div>
-                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                        {event.statut}
-                      </span>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-gray-700 text-sm mb-4 line-clamp-2">
-                      {event.description}
-                    </p>
-
-                    {/* Informations */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span className="w-4 h-4 mr-2">📅</span>
-                        {formatDate(event.date)} à {event.heure}
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span className="w-4 h-4 mr-2">📍</span>
-                        {event.lieu}, {event.ville}
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span className="w-4 h-4 mr-2">👥</span>
-                        {event.participants?.length || 0} / {event.nombreParticipants} participants
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span className="w-4 h-4 mr-2">{getNiveauEmoji(event.niveau)}</span>
-                        Niveau: {event.niveau}
-                      </div>
-                    </div>
-
-                    {/* Organisateur */}
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-500">
-                        Organisé par <strong>{event.organisateur?.prenom} {event.organisateur?.nom}</strong>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="mt-4 pt-4 border-t">
-                      {event.statut === 'complet' ? (
-                        <button
-                          disabled
-                          className="w-full bg-gray-100 text-gray-500 py-2 px-4 rounded-md cursor-not-allowed"
-                        >
-                          Événement complet
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleJoinEvent(event._id)}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
-                        >
-                          Rejoindre l'événement
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <EventCard 
+                  key={event._id} 
+                  event={event} 
+                  onJoin={handleJoinEvent}
+                  onReserve={handleReserveSlot}
+                />
               ))}
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Composant pour afficher une carte d'événement
+const EventCard = ({ event, onJoin, onReserve }) => {
+  const [showReservation, setShowReservation] = useState(false);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getNiveauEmoji = (niveau) => {
+    switch(niveau) {
+      case 'debutant': return '🌱';
+      case 'intermediaire': return '🎯';
+      case 'avance': return '🏆';
+      default: return '👥';
+    }
+  };
+
+  const getSportEmoji = (sport) => {
+    const sportEmojis = {
+      'Football': '⚽',
+      'Basketball': '🏀',
+      'Tennis': '🎾',
+      'Running': '🏃‍♂️',
+      'Volleyball': '🏐',
+      'Badminton': '🏸',
+      'Natation': '🏊‍♂️',
+      'Cyclisme': '🚴‍♂️',
+      'Fitness': '💪',
+      'Yoga': '🧘‍♀️'
+    };
+    return sportEmojis[sport] || '🏃‍♂️';
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+      <div className="p-6">
+        {/* Header de l'événement */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center">
+            <span className="text-2xl mr-3">{getSportEmoji(event.sport)}</span>
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900">{event.titre}</h4>
+              <p className="text-sm text-gray-600">{event.sport}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+              {event.statut}
+            </span>
+            {event.distance && (
+              <p className="text-xs text-gray-500 mt-1">📍 {event.distance} km</p>
+            )}
+          </div>
+        </div>
+
+        {/* Description */}
+        <p className="text-gray-700 text-sm mb-4 line-clamp-2">
+          {event.description}
+        </p>
+
+        {/* Informations */}
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center text-sm text-gray-600">
+            <span className="w-4 h-4 mr-2">📅</span>
+            {formatDate(event.date)} à {event.heure}
+          </div>
+          <div className="flex items-center text-sm text-gray-600">
+            <span className="w-4 h-4 mr-2">📍</span>
+            {event.lieu}, {event.ville}
+          </div>
+          {event.adresse && (
+            <div className="flex items-center text-sm text-gray-600">
+              <span className="w-4 h-4 mr-2">🏠</span>
+              {event.adresse}
+            </div>
+          )}
+          <div className="flex items-center text-sm text-gray-600">
+            <span className="w-4 h-4 mr-2">👥</span>
+            {event.participants?.length || 0} / {event.nombreParticipants} participants
+          </div>
+          <div className="flex items-center text-sm text-gray-600">
+            <span className="w-4 h-4 mr-2">{getNiveauEmoji(event.niveau)}</span>
+            Niveau: {event.niveau}
+          </div>
+        </div>
+
+        {/* Créneaux disponibles */}
+        {event.creneauxDisponibles && event.creneauxDisponibles.length > 0 && (
+          <div className="mb-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">Créneaux disponibles:</p>
+            <div className="space-y-1">
+              {event.creneauxDisponibles.map((creneau, index) => (
+                <div key={index} className="text-xs bg-gray-50 px-2 py-1 rounded flex justify-between">
+                  <span>{creneau.debut} - {creneau.fin}</span>
+                  <span className="text-gray-600">{creneau.terrain}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Organisateur */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-xs text-gray-500">
+            Organisé par <strong>{event.organisateur?.prenom} {event.organisateur?.nom}</strong>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="space-y-2">
+          {event.statut === 'complet' ? (
+            <button
+              disabled
+              className="w-full bg-gray-100 text-gray-500 py-2 px-4 rounded-md cursor-not-allowed"
+            >
+              Événement complet
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => onJoin(event._id)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Rejoindre l'événement
+              </button>
+              
+              {event.creneauxDisponibles && event.creneauxDisponibles.length > 0 && (
+                <button
+                  onClick={() => setShowReservation(!showReservation)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+                >
+                  Réserver un créneau
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Interface de réservation */}
+        {showReservation && event.creneauxDisponibles && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-md">
+            <h5 className="font-medium text-gray-900 mb-3">Choisir un créneau</h5>
+            <div className="space-y-2">
+              {event.creneauxDisponibles.map((creneau, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    onReserve(event._id, creneau.terrain);
+                    setShowReservation(false);
+                  }}
+                  disabled={!creneau.disponible}
+                  className={`w-full p-2 rounded text-sm font-medium transition-colors ${
+                    creneau.disponible
+                      ? 'bg-white border border-gray-300 hover:bg-emerald-50 hover:border-emerald-300'
+                      : 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {creneau.debut} - {creneau.fin} • {creneau.terrain}
+                  {!creneau.disponible && ' (Réservé)'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

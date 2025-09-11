@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { eventsAPI } from '../services/api';
+import { eventsAPI, locationAPI, eventUtils } from '../services/api';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -12,19 +12,54 @@ const HomePage = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSport, setSelectedSport] = useState('Tous types');
-  const [userLocation, setUserLocation] = useState('Paris'); // Par défaut
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [maxDistance, setMaxDistance] = useState(25);
+  const [sortBy, setSortBy] = useState('date');
 
   // Sports pour les filtres
   const sportsFilter = [
-    'Tous types', 'Sports', 'Football', 'Basketball', 'Tennis', 
+    'Tous types', 'Football', 'Basketball', 'Tennis', 
     'Running', 'Volleyball', 'Badminton', 'Natation', 'Cyclisme', 
-    'Fitness', 'Yoga'
+    'Fitness', 'Yoga', 'Escalade', 'Randonnée'
   ];
 
   useEffect(() => {
-    loadEvents();
     getUserLocation();
+    loadEvents();
   }, []);
+
+  // Fonction pour calculer la distance entre deux points GPS
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Rayon de la Terre en kilomètres
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const getUserLocation = async () => {
+    try {
+      setLocationLoading(true);
+      const position = await locationAPI.getCurrentPosition();
+      setUserLocation(position);
+      
+      // Recharger les événements avec la géolocalisation
+      loadEventsWithLocation(position);
+    } catch (error) {
+      console.log('Géolocalisation non autorisée:', error);
+      // Utiliser une position par défaut (Paris)
+      const defaultLocation = { latitude: 48.8566, longitude: 2.3522 };
+      setUserLocation(defaultLocation);
+      loadEvents();
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const loadEvents = async () => {
     try {
@@ -39,19 +74,37 @@ const HomePage = () => {
     }
   };
 
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          // Ici tu peux utiliser une API de géocodage inverse pour obtenir la ville
-          // Pour l'instant on garde "Paris" par défaut
-          setUserLocation('Paris');
-        },
-        (error) => {
-          console.log('Géolocalisation non autorisée');
-          setUserLocation('Paris');
+  const loadEventsWithLocation = async (location) => {
+    try {
+      setLoading(true);
+      const response = await eventsAPI.getAll();
+      
+      // Calculer la distance pour chaque événement qui a des coordonnées
+      const eventsWithDistance = response.data.map(event => {
+        if (event.latitude && event.longitude) {
+          const distance = calculateDistance(
+            location.latitude,
+            location.longitude,
+            event.latitude,
+            event.longitude
+          );
+          return { ...event, distance: Math.round(distance * 10) / 10 };
         }
-      );
+        return event;
+      });
+
+      // Filtrer par distance
+      const filteredEvents = eventsWithDistance.filter(event => {
+        if (!event.distance) return true; // Garder les événements sans coordonnées
+        return event.distance <= maxDistance;
+      });
+
+      setEvents(filteredEvents);
+    } catch (error) {
+      setError('Erreur lors du chargement des événements');
+      console.error('Erreur:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,8 +115,18 @@ const HomePage = () => {
       return;
     }
     
-    // Si connecté, rediriger vers le dashboard pour la gestion
     navigate('/dashboard');
+  };
+
+  const handleLocationUpdate = () => {
+    getUserLocation();
+  };
+
+  const handleDistanceChange = (newDistance) => {
+    setMaxDistance(newDistance);
+    if (userLocation) {
+      loadEventsWithLocation(userLocation);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -91,18 +154,27 @@ const HomePage = () => {
     return sportEmojis[sport] || '🏃‍♂️';
   };
 
-  // Filtrer les événements
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.titre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.ville.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesSport = selectedSport === 'Tous types' || 
-                        selectedSport === 'Sports' || 
-                        event.sport === selectedSport;
-    
-    return matchesSearch && matchesSport;
-  });
+  // Filtrer et trier les événements
+  const filteredAndSortedEvents = React.useMemo(() => {
+    let filtered = eventUtils.filterEvents(events, {
+      sport: selectedSport,
+      ville: searchQuery,
+      maxDistance,
+      userLocation
+    });
+
+    // Filtrage par recherche textuelle
+    if (searchQuery) {
+      filtered = filtered.filter(event => 
+        event.titre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.ville.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return eventUtils.sortEvents(filtered, sortBy, userLocation);
+  }, [events, selectedSport, searchQuery, maxDistance, userLocation, sortBy]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -182,15 +254,13 @@ const HomePage = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 text-gray-400">📍</span>
-                    <input
-                      type="text"
-                      value={userLocation}
-                      onChange={(e) => setUserLocation(e.target.value)}
-                      className="pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 w-32"
-                    />
-                  </div>
+                  <button
+                    onClick={handleLocationUpdate}
+                    disabled={locationLoading}
+                    className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md font-medium transition-colors disabled:opacity-50"
+                  >
+                    {locationLoading ? '📍...' : '📍 Ma position'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -198,23 +268,60 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Filtres */}
+      {/* Filtres et contrôles */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-wrap gap-3">
-            {sportsFilter.map(sport => (
-              <button
-                key={sport}
-                onClick={() => setSelectedSport(sport)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  selectedSport === sport
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {sport}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Filtres sports */}
+            <div className="flex flex-wrap gap-2">
+              {sportsFilter.slice(0, 8).map(sport => (
+                <button
+                  key={sport}
+                  onClick={() => setSelectedSport(sport)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    selectedSport === sport
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {sport}
+                </button>
+              ))}
+            </div>
+
+            {/* Contrôles de tri et distance */}
+            <div className="flex items-center gap-4">
+              {userLocation && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Rayon:</label>
+                  <select
+                    value={maxDistance}
+                    onChange={(e) => handleDistanceChange(Number(e.target.value))}
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    <option value={5}>5 km</option>
+                    <option value={10}>10 km</option>
+                    <option value={25}>25 km</option>
+                    <option value={50}>50 km</option>
+                    <option value={100}>100 km</option>
+                  </select>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Trier par:</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  <option value="date">Date</option>
+                  {userLocation && <option value="distance">Distance</option>}
+                  <option value="participants">Participants</option>
+                  <option value="sport">Sport</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -224,11 +331,25 @@ const HomePage = () => {
         {/* Statistiques */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Recommandé pour vous
+            {userLocation ? 'Recommandé pour vous' : 'Événements disponibles'}
           </h2>
           <p className="text-gray-600 mb-4">
-            {filteredEvents.length} événement{filteredEvents.length !== 1 ? 's' : ''} trouvé{filteredEvents.length !== 1 ? 's' : ''} près de {userLocation}
+            {filteredAndSortedEvents.length} événement{filteredAndSortedEvents.length !== 1 ? 's' : ''} trouvé{filteredAndSortedEvents.length !== 1 ? 's' : ''}
+            {userLocation && ` dans un rayon de ${maxDistance} km`}
           </p>
+          
+          {/* Indicateur de géolocalisation */}
+          {userLocation && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="flex items-center text-emerald-700">
+                <span className="text-lg mr-2">📍</span>
+                <span className="text-sm">
+                  Position détectée • Événements triés par proximité • 
+                  Distances calculées automatiquement
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Loading */}
@@ -248,86 +369,148 @@ const HomePage = () => {
         {/* Liste des événements */}
         {!loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredEvents.length === 0 ? (
+            {filteredAndSortedEvents.length === 0 ? (
               <div className="col-span-full text-center py-12">
                 <div className="text-6xl mb-4">🏃‍♂️</div>
                 <h3 className="text-xl font-medium text-gray-900 mb-2">
                   Aucun événement trouvé
                 </h3>
                 <p className="text-gray-600">
-                  Essayez de modifier vos filtres ou votre recherche
+                  Essayez de modifier vos filtres ou d'élargir votre zone de recherche
                 </p>
               </div>
             ) : (
-              filteredEvents.map((event) => (
-                <div key={event._id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer">
-                  {/* Image placeholder */}
-                  <div className="h-48 bg-gradient-to-br from-emerald-400 to-green-500 rounded-t-lg flex items-center justify-center">
-                    <span className="text-4xl text-white">{getSportEmoji(event.sport)}</span>
-                  </div>
-
-                  <div className="p-4">
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 text-sm mb-1">{event.titre}</h3>
-                        <p className="text-xs text-gray-600">{event.sport}</p>
-                      </div>
-                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                        {event.statut}
-                      </span>
-                    </div>
-
-                    {/* Informations */}
-                    <div className="space-y-1 mb-3">
-                      <div className="flex items-center text-xs text-gray-600">
-                        <span className="w-3 h-3 mr-2">📅</span>
-                        {formatDate(event.date)} • {event.heure}
-                      </div>
-                      <div className="flex items-center text-xs text-gray-600">
-                        <span className="w-3 h-3 mr-2">📍</span>
-                        {event.lieu}, {event.ville}
-                      </div>
-                      <div className="flex items-center text-xs text-gray-600">
-                        <span className="w-3 h-3 mr-2">👥</span>
-                        {event.participants?.length || 0}/{event.nombreParticipants} participants
-                      </div>
-                    </div>
-
-                    {/* Prix et action */}
-                    <div className="flex justify-between items-center pt-3 border-t">
-                      <div>
-                        <span className="text-lg font-bold text-gray-900">Gratuit</span>
-                      </div>
-                      <button
-                        onClick={() => handleJoinEvent(event._id)}
-                        disabled={event.statut === 'complet'}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                          event.statut === 'complet'
-                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        }`}
-                      >
-                        {event.statut === 'complet' ? 'Complet' : 'Participer'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              filteredAndSortedEvents.map((event) => (
+                <EventCard 
+                  key={event._id} 
+                  event={event} 
+                  onJoin={handleJoinEvent}
+                  showDistance={userLocation && event.distance !== undefined}
+                />
               ))
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+};
 
-      {/* Footer simple */}
-      <footer className="bg-gray-900 text-white mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <h3 className="text-lg font-bold mb-2">🏃‍♀️ TeamUp</h3>
-            <p className="text-gray-400">Connectez-vous avec des sportifs passionnés</p>
+// Composant pour afficher une carte d'événement avec badges de distance
+const EventCard = ({ event, onJoin, showDistance = false }) => {
+  const getSportEmoji = (sport) => {
+    const sportEmojis = {
+      'Football': '⚽',
+      'Basketball': '🏀',
+      'Tennis': '🎾',
+      'Running': '🏃‍♂️',
+      'Volleyball': '🏐',
+      'Badminton': '🏸',
+      'Natation': '🏊‍♂️',
+      'Cyclisme': '🚴‍♂️',
+      'Fitness': '💪',
+      'Yoga': '🧘‍♀️'
+    };
+    return sportEmojis[sport] || '🏃‍♂️';
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getDistanceMessage = (distance) => {
+    if (distance <= 2) return "Très proche !";
+    if (distance <= 5) return "À proximité";
+    if (distance <= 15) return "Distance raisonnable";
+    return "Un peu éloigné";
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer">
+      {/* Image placeholder avec badges */}
+      <div className="h-48 bg-gradient-to-br from-emerald-400 to-green-500 rounded-t-lg flex items-center justify-center relative">
+        <span className="text-4xl text-white">{getSportEmoji(event.sport)}</span>
+        
+        {/* Badge de distance */}
+        {event.distance !== undefined && (
+          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-medium">
+            📍 {event.distance} km
+          </div>
+        )}
+        
+        {/* Badge de géolocalisation */}
+        {event.latitude && event.longitude ? (
+          <div className="absolute top-2 left-2 bg-emerald-600 text-white px-2 py-1 rounded-full text-xs font-medium">
+            📍 Géolocalisé
+          </div>
+        ) : (
+          <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+            📍 Position approximative
+          </div>
+        )}
+      </div>
+
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">{event.titre}</h3>
+            <p className="text-xs text-gray-600">{event.sport}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
+              {event.statut}
+            </span>
           </div>
         </div>
-      </footer>
+
+        {/* Informations */}
+        <div className="space-y-1 mb-3">
+          <div className="flex items-center text-xs text-gray-600">
+            <span className="w-3 h-3 mr-2">📅</span>
+            {formatDate(event.date)} • {event.heure}
+          </div>
+          <div className="flex items-center text-xs text-gray-600">
+            <span className="w-3 h-3 mr-2">📍</span>
+            {event.lieu}, {event.ville}
+          </div>
+          <div className="flex items-center text-xs text-gray-600">
+            <span className="w-3 h-3 mr-2">👥</span>
+            {event.participants?.length || 0}/{event.nombreParticipants} participants
+          </div>
+          
+          {/* Informations de distance détaillées */}
+          {event.distance !== undefined && (
+            <div className="flex items-center text-xs text-emerald-600 font-medium">
+              <span className="w-3 h-3 mr-2">🎯</span>
+              À {event.distance} km de vous • {getDistanceMessage(event.distance)}
+            </div>
+          )}
+        </div>
+
+        {/* Prix et action */}
+        <div className="flex justify-between items-center pt-3 border-t">
+          <div>
+            <span className="text-lg font-bold text-gray-900">Gratuit</span>
+          </div>
+          <button
+            onClick={() => onJoin(event._id)}
+            disabled={event.statut === 'complet'}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              event.statut === 'complet'
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            {event.statut === 'complet' ? 'Complet' : 'Participer'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
