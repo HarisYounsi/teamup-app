@@ -20,7 +20,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {}
+  (error) => Promise.reject(error)
 );
 
 // Auth API
