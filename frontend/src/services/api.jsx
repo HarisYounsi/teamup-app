@@ -25,7 +25,14 @@ api.interceptors.request.use(
 
 // Auth API
 export const authAPI = {
-  register: (userData) => api.post('/auth/register', userData),
+  register: (userData) => {
+    try {
+      return api.post('/auth/register', userData);
+    } catch (error) {
+      console.error('Erreur API register:', error);
+      return Promise.reject(error);
+    }
+  },
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/me'),
 };
