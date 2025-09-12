@@ -154,8 +154,13 @@ const HomePage = () => {
     return sportEmojis[sport] || '🏃‍♂️';
   };
 
-  // Filtrer et trier les événements
+  // Filtrer et trier les événements avec protection
   const filteredAndSortedEvents = React.useMemo(() => {
+    // Protection contre les événements non définis ou non-tableau
+    if (!Array.isArray(events)) {
+      return [];
+    }
+
     let filtered = eventUtils.filterEvents(events, {
       sport: selectedSport,
       ville: searchQuery,
@@ -166,10 +171,10 @@ const HomePage = () => {
     // Filtrage par recherche textuelle
     if (searchQuery) {
       filtered = filtered.filter(event => 
-        event.titre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.ville.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.description.toLowerCase().includes(searchQuery.toLowerCase())
+        event.titre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.sport?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.ville?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
